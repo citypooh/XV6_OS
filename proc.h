@@ -1,3 +1,11 @@
+// proc.h
+
+#define NICE_MIN 0
+#define NICE_MAX 4
+#define NICE_DEFAULT 2
+
+#define MAX_LOCKS 7
+
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID
@@ -15,15 +23,6 @@ extern int ncpu;
 
 //PAGEBREAK: 17
 // Saved registers for kernel context switches.
-// Don't need to save all the segment registers (%cs, etc),
-// because they are constant across kernel contexts.
-// Don't need to save %eax, %ecx, %edx, because the
-// x86 convention is that the caller has saved them.
-// Contexts are stored at the bottom of the stack they
-// describe; the stack pointer is the address of the context.
-// The layout of the context matches the layout of the stack in swtch.S
-// at the "Switch stacks" comment. Switch doesn't save eip explicitly,
-// but it is on the stack and allocproc() manipulates it.
 struct context {
   uint edi;
   uint esi;
@@ -49,7 +48,25 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int nice;                    // nice value (relative) 0 to 4
+  int orig_nice;               // nice value (original)
 };
+
+int setnice(int pid, int val, int *old); // set nice value of a process
+
+struct lock_t {
+  int id;          // valid public IDs: 1..7  (internal index: 0..6)
+  int held;        // 0=free, 1=held
+  int owner_pid;   // holder pid, -1 if free
+};
+
+extern struct lock_t locks[MAX_LOCKS];
+
+int k_lock_acquire(int id);
+int k_lock_release(int id);
+struct proc* find_proc_by_pid(int pid);
+void inherit_priority(struct proc *p, int newnice);
+void restore_priority(struct proc *p);   // recompute effective nice
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

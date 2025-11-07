@@ -1,3 +1,4 @@
+// sysproc.c
 #include "types.h"
 #include "x86.h"
 #include "defs.h"
@@ -77,8 +78,7 @@ sys_sleep(void)
   return 0;
 }
 
-// return how many clock tick interrupts have occurred
-// since start.
+// return how many clock tick interrupts have occurred since start.
 int
 sys_uptime(void)
 {
@@ -88,4 +88,41 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+int
+sys_nice(void)
+{
+  int pid, val, old;
+
+  if(argint(0, &pid) < 0) return -1;
+  if(argint(1, &val) < 0) return -1;
+
+  // value range check (single point)
+  if(val < NICE_MIN || val > NICE_MAX)
+    return -1;
+
+  if(pid < 0)
+    return -1;
+
+  if(setnice(pid, val, &old) < 0)
+    return -1;
+
+  return old;
+}
+
+int
+sys_lock(void)
+{
+  int id;
+  if(argint(0, &id) < 0) return -1;
+  return k_lock_acquire(id);
+}
+
+int
+sys_release(void)
+{
+  int id;
+  if(argint(0, &id) < 0) return -1;
+  return k_lock_release(id);
 }
