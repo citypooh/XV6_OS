@@ -183,6 +183,13 @@ UPROGS=\
 	_zombie\
 	_hello\
 	_tail\
+	_nice\
+	_test1\
+    _test2\
+    _test3\
+  	_test_lock1\
+  	_test_lock2\
+  	_test_lock3\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
