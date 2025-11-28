@@ -126,3 +126,10 @@ sys_release(void)
   if(argint(0, &id) < 0) return -1;
   return k_lock_release(id);
 }
+
+int
+sys_halt(void)
+{
+  outw(0x604, 0x2000);
+  return 0;
+}

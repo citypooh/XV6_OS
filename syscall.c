@@ -106,6 +106,7 @@ extern int sys_uptime(void);
 extern int sys_nice(void);
 extern int sys_lock(void);
 extern int sys_release(void);
+extern int sys_halt(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -132,6 +133,7 @@ static int (*syscalls[])(void) = {
 [SYS_nice]    sys_nice,
 [SYS_lock]    sys_lock,
 [SYS_release] sys_release,
+[SYS_halt]    sys_halt,
 };
 
 void

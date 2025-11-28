@@ -26,6 +26,7 @@ int uptime(void);
 int nice(int pid, int value);
 int lock(int id);
 int release(int id);
+int halt(void);
 
 // ulib.c
 int stat(const char*, struct stat*);

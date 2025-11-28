@@ -23,3 +23,4 @@
 #define SYS_nice    22
 #define SYS_lock    23
 #define SYS_release 24
+#define SYS_halt 25
