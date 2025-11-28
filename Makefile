@@ -190,7 +190,7 @@ UPROGS=\
   	_test_lock1\
   	_test_lock2\
   	_test_lock3\
-  	_shutdown\
+  	_halt\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
