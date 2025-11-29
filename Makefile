@@ -145,6 +145,15 @@ vectors.S: vectors.pl
 
 ULIB = ulib.o usys.o printf.o umalloc.o
 
+_test_part1: test_final_part1.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+_test_part2: test_final_part2.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+_test_part3_pc: test_final_part3_producer_consumer.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+_test_part3_rw: test_final_part3_reader_writer.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
 	$(OBJDUMP) -S $@ > $*.asm
@@ -191,6 +200,10 @@ UPROGS=\
   	_test_lock2\
   	_test_lock3\
   	_halt\
+  	_test_part1\
+  	_test_part2\
+  	_test_part3_pc\
+  	_test_part3_rw\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
