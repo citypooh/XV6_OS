@@ -1,6 +1,3 @@
-// test_final_extra.c
-// extra credit: file-based producer-consumer using fork and safe I/O
-
 #include "types.h"
 #include "user.h"
 #include "uthreads.h"
