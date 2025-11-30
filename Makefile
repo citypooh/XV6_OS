@@ -153,6 +153,10 @@ _test_part3_pc: test_final_part3_producer_consumer.o ulib.o usys.o printf.o umal
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
 _test_part3_rw: test_final_part3_reader_writer.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+_test_extra: test_final_extra.o ulib.o usys.o printf.o umalloc.o \
+                   uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o \
+                   safeio.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
@@ -204,6 +208,7 @@ UPROGS=\
   	_test_part2\
   	_test_part3_pc\
   	_test_part3_rw\
+  	_test_extra\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
