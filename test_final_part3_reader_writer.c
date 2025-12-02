@@ -73,7 +73,7 @@ writer_unlock(rwlock_t *r) {
   mutex_unlock(&r->lock);
 }
 
-static void
+static void *
 reader_thread(void *arg) {
   int id = (int)arg;
   int i;
@@ -88,10 +88,10 @@ reader_thread(void *arg) {
   }
 
   printf(1, "Reader %d: done\n", id);
-  thread_exit(0);
+  return 0;
 }
 
-static void
+static void *
 writer_thread(void *arg) {
   int id = (int)arg;
   int i;
@@ -107,7 +107,7 @@ writer_thread(void *arg) {
   }
 
   printf(1, "Writer %d: done\n", id);
-  thread_exit(0);
+  return 0;
 }
 
 int
@@ -116,6 +116,9 @@ main(int argc, char *argv[]) {
   int wtids[NWRITERS];
   int i;
   void *ret;
+
+  (void)argc;
+  (void)argv;
 
   printf(1, "test_final_part3_reader_writer: start\n");
 

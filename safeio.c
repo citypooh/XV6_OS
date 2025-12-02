@@ -1,12 +1,14 @@
 #include "types.h"
 #include "user.h"          // open, read, write, close, malloc, free
+#include "uthreads.h"
 #include "safeio.h"
 #include "safeio_private.h"
 
 static channel_t *safeio_req_ch = 0;
 static int safeio_started = 0;
 
-static void safeio_worker(void *arg);  // worker thread
+// worker thread: now returns void*
+static void *safeio_worker(void *arg);
 
 // start IO worker once
 static void
@@ -19,6 +21,7 @@ safeio_init_once(void) {
   if (safeio_req_ch == 0)
     return;
 
+  // thread_create now expects void* (*)(void*)
   int tid = thread_create(safeio_worker, 0);
   (void)tid;
 }
@@ -36,7 +39,7 @@ safeio_wait_result(struct safeio_req *req) {
 }
 
 // worker thread main loop
-static void
+static void *
 safeio_worker(void *arg) {
   (void)arg;
   struct safeio_req *req;
@@ -67,7 +70,8 @@ safeio_worker(void *arg) {
     mutex_unlock(&req->lock);
   }
 
-  thread_exit(0);
+  // thread_trampoline가 이 반환값을 받아 thread_exit(retval) 호출
+  return 0;
 }
 
 int

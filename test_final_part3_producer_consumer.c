@@ -8,7 +8,7 @@
 
 static channel_t *pc_ch;
 
-static void
+static void *
 producer(void *arg) {
   int id = (int)arg;
   int i;
@@ -38,10 +38,10 @@ producer(void *arg) {
   }
 
   printf(1, "Producer %d: done\n", id);
-  thread_exit(0);
+  return 0;
 }
 
-static void
+static void *
 consumer(void *arg) {
   int id = (int)arg;
   void *data;
@@ -68,7 +68,7 @@ consumer(void *arg) {
   }
 
   printf(1, "Consumer %d: received %d items, exit\n", id, count);
-  thread_exit(0);
+  return 0;
 }
 
 int
@@ -77,6 +77,9 @@ main(int argc, char *argv[]) {
   int cons_tids[NCONS];
   int i;
   void *ret;
+
+  (void)argc;
+  (void)argv;
 
   printf(1, "test_final_part3_producer_consumer: start\n");
 

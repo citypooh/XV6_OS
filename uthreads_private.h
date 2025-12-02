@@ -2,6 +2,7 @@
 #define UTHREADS_PRIVATE_H
 
 #include "types.h"
+#include "user.h"
 #include "uthreads.h"
 
 #define MAX_THREADS 64       // max threads in one process
@@ -15,25 +16,26 @@ enum thread_state {
   T_ZOMBIE
 };
 
+/*
+ * Core thread structure
+ */
 struct thread {
-  void *sp;                        // saved stack pointer for this thread
-  int tid;
-  int state;
-  void (*start_routine)(void *);   // entry function
-  void *arg;                       // argument for entry function
-  void *retval;                    // value passed to thread_exit
-  struct thread *joiner;           // thread waiting in join
-  struct thread *wait_next;        // link for wait queues
-  char stack_mem[STACK_SIZE];      // stack storage for this thread
+  uint sp;                      // saved stack pointer (for thread_switch)
+  char *stack;                  // malloc'ed stack base
+  int tid;                      // thread id
+  enum thread_state state;      // T_*
+
+  void *(*start_routine)(void *); // user function
+  void *arg;                    // argument to start_routine
+  void *retval;                 // return value for thread_join
+
+  struct thread *joiner;        // thread blocked in join(tid)
+  struct thread *wait_next;     // link field for wait queues
 };
 
-extern struct thread threads[MAX_THREADS];
-extern struct thread *current_thread;
-extern int next_tid;
-
-void thread_schedule(void);                      // pick next runnable thread
-void thread_switch(struct thread *old,
-  struct thread *next);         // low-level context switch
+/*
+ * Channel internal structure
+ */
 
 struct channel {
   void **buf;
@@ -41,10 +43,26 @@ struct channel {
   int count;
   int rpos;
   int wpos;
-  int closed;
+  int closed;       // 0 = open, 1 = closed
+
   mutex_t lock;
   cond_t not_empty;
   cond_t not_full;
 };
+
+/*
+ * Global thread table
+ */
+
+extern struct thread threads[MAX_THREADS];
+extern struct thread *current_thread;
+extern int next_tid;
+
+/*
+ * Internal functions
+ */
+
+void thread_schedule(void);
+void thread_switch(struct thread *old, struct thread *next);
 
 #endif

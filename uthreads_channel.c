@@ -37,19 +37,23 @@ channel_send(channel_t *ch, void *data) {
 
   mutex_lock(&ch->lock);
 
+  // block while buffer is full and channel is open
   while (ch->count == ch->capacity && !ch->closed) {
     cond_wait(&ch->not_full, &ch->lock);
   }
 
   if (ch->closed) {
+    // cannot send on closed channel
     mutex_unlock(&ch->lock);
     return -1;
   }
 
+  // write data into buffer
   ch->buf[ch->wpos] = data;
   ch->wpos = (ch->wpos + 1) % ch->capacity;
   ch->count++;
 
+  // wake a waiting receiver
   cond_signal(&ch->not_empty);
 
   mutex_unlock(&ch->lock);
@@ -63,19 +67,23 @@ channel_recv(channel_t *ch, void **data) {
 
   mutex_lock(&ch->lock);
 
+  // block while buffer is empty and channel is open
   while (ch->count == 0 && !ch->closed) {
     cond_wait(&ch->not_empty, &ch->lock);
   }
 
   if (ch->count == 0 && ch->closed) {
+    // no more data and closed
     mutex_unlock(&ch->lock);
     return -1;
   }
 
+  // read data
   *data = ch->buf[ch->rpos];
   ch->rpos = (ch->rpos + 1) % ch->capacity;
   ch->count--;
 
+  // wake a waiting sender
   cond_signal(&ch->not_full);
 
   mutex_unlock(&ch->lock);
@@ -89,7 +97,10 @@ channel_close(channel_t *ch) {
 
   mutex_lock(&ch->lock);
   ch->closed = 1;
+
+  // wake all waiters so they can observe closed flag
   cond_broadcast(&ch->not_empty);
   cond_broadcast(&ch->not_full);
+
   mutex_unlock(&ch->lock);
 }

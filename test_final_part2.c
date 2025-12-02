@@ -4,18 +4,41 @@
 
 #define NTHREADS 4
 #define NLOOPS   1000
-#define NITEMS 20
+#define NITEMS   20
 
+// --- shared counter ---
+
+static int counter_no_lock = 0;   // counter without mutex
+static int counter = 0;           // counter with mutex
 static mutex_t counter_lock;
-static int counter = 0;
+
 
 static mutex_t cond_lock;
 static cond_t cond_var;
 static int ready = 0;
 
+
 static channel_t *test_ch;
 
-static void
+// ---- shared counter: no mutex ----
+
+static void *
+counter_worker_no_lock(void *arg) {
+  int id = (int)arg;
+  for (int i = 0; i < NLOOPS; i++) {
+    counter_no_lock++;
+
+    if ((i % 200) == 0) {
+      printf(1, "[no_lock] thread %d: i=%d\n", id, i);
+      thread_yield();
+    }
+  }
+  return 0;
+}
+
+// ---- shared counter: with mutex ----
+
+static void *
 counter_worker(void *arg) {
   int id = (int)arg;
   for (int i = 0; i < NLOOPS; i++) {
@@ -24,14 +47,16 @@ counter_worker(void *arg) {
     mutex_unlock(&counter_lock);
 
     if ((i % 200) == 0) {
-      printf(1, "counter thread %d: i=%d\n", id, i);
+      printf(1, "[mutex] thread %d: i=%d\n", id, i);
       thread_yield();
     }
   }
-  thread_exit(0);
+  return 0;
 }
 
-static void
+// ---- condition variable test ----
+
+static void *
 cond_waiter(void *arg) {
   (void)arg;
 
@@ -43,10 +68,10 @@ cond_waiter(void *arg) {
   printf(1, "cond_waiter: got signal\n");
   mutex_unlock(&cond_lock);
 
-  thread_exit(0);
+  return 0;
 }
 
-static void
+static void *
 cond_signaler(void *arg) {
   (void)arg;
 
@@ -60,10 +85,11 @@ cond_signaler(void *arg) {
   cond_signal(&cond_var);
   mutex_unlock(&cond_lock);
 
-  thread_exit(0);
+  return 0;
 }
 
-static void
+
+static void *
 channel_producer(void *arg) {
   int i;
   (void)arg;
@@ -91,10 +117,10 @@ channel_producer(void *arg) {
   channel_close(test_ch);
 
   printf(1, "channel_producer: done\n");
-  thread_exit(0);
+  return 0;
 }
 
-static void
+static void *
 channel_consumer(void *arg) {
   (void)arg;
   void *data;
@@ -117,7 +143,7 @@ channel_consumer(void *arg) {
   }
 
   printf(1, "channel_consumer: received %d items\n", count);
-  thread_exit(0);
+  return 0;
 }
 
 int
@@ -125,15 +151,43 @@ main(int argc, char *argv[]) {
   int tids[NTHREADS];
   void *ret;
 
-  printf(1, "test_final_part2: start\n");
+  (void)argc;
+  (void)argv;
 
+  printf(1, "test_final_part2: start\n");
   thread_init();
 
   mutex_init(&counter_lock);
   mutex_init(&cond_lock);
   cond_init(&cond_var);
 
-  // test mutex with shared counter
+  // -------------------------------------------------
+  // 1) Shared counter WITHOUT mutex (race demo)
+  // -------------------------------------------------
+  counter_no_lock = 0;
+  printf(1, "\n[Shared Counter NO mutex]\n");
+  for (int i = 0; i < NTHREADS; i++) {
+    int tid = thread_create(counter_worker_no_lock, (void *)(i + 1));
+    if (tid < 0) {
+      printf(1, "failed to create no_lock counter thread %d\n", i + 1);
+      exit();
+    }
+    tids[i] = tid;
+  }
+
+  for (int i = 0; i < NTHREADS; i++) {
+    ret = thread_join(tids[i]);
+    (void)ret;
+  }
+
+  printf(1, "counter_no_lock final value = %d (expected %d)\n",
+         counter_no_lock, NTHREADS * NLOOPS);
+
+  // -------------------------------------------------
+  // 2) Shared counter WITH mutex
+  // -------------------------------------------------
+  counter = 0;
+  printf(1, "\n[Shared Counter WITH mutex]\n");
   for (int i = 0; i < NTHREADS; i++) {
     int tid = thread_create(counter_worker, (void *)(i + 1));
     if (tid < 0) {
@@ -151,7 +205,10 @@ main(int argc, char *argv[]) {
   printf(1, "counter final value = %d (expected %d)\n",
          counter, NTHREADS * NLOOPS);
 
-  // test condition variable
+  // -------------------------------------------------
+  // 3) Condition variable test
+  // -------------------------------------------------
+  printf(1, "\n[Condition Variable Test]\n");
   int tw = thread_create(cond_waiter, 0);
   int ts = thread_create(cond_signaler, 0);
 
@@ -163,8 +220,10 @@ main(int argc, char *argv[]) {
   thread_join(tw);
   thread_join(ts);
 
-  // channel test
-  printf(1, "channel test: start\n");
+  // -------------------------------------------------
+  // 4) Channel test
+  // -------------------------------------------------
+  printf(1, "\n[Channel Test]\n");
 
   test_ch = channel_create(4);
   if (test_ch == 0) {

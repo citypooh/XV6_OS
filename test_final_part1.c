@@ -4,20 +4,24 @@
 
 #define NTHREADS 3
 
-static void
+static void *
 worker(void *arg) {
   int id = (int)arg;
   for (int i = 0; i < 5; i++) {
     printf(1, "thread %d: iteration %d\n", id, i);
     thread_yield();
   }
-  thread_exit((void *)(id * 10 + 1));
+
+  return (void *)(id * 10 + 1);
 }
 
 int
 main(int argc, char *argv[]) {
   int tids[NTHREADS];
   void *ret;
+
+  (void)argc;
+  (void)argv;
 
   printf(1, "test_final_part1: start\n");
 
