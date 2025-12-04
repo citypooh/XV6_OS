@@ -145,6 +145,28 @@ vectors.S: vectors.pl
 
 ULIB = ulib.o usys.o printf.o umalloc.o
 
+# ---- user-level threading test programs ----
+
+_t_part1: test_final_part1.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+
+_t_part2: test_final_part2.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+
+_t_part3_pc: test_final_part3_producer_consumer.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+
+_t_part3_pc_sem: test_final_part3_producer_consumer_sem.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+
+_t_part3_rw: test_final_part3_reader_writer.o ulib.o usys.o printf.o umalloc.o uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+
+_t_part4_safeio: test_final_extra.o ulib.o usys.o printf.o umalloc.o \
+                   uthreads_core.o uthreads_ctx.o uthreads_sync.o uthreads_channel.o \
+                   safeio.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
 	$(OBJDUMP) -S $@ > $*.asm
@@ -191,6 +213,12 @@ UPROGS=\
   	_test_lock2\
   	_test_lock3\
   	_halt\
+  	_t_part1\
+  	_t_part2\
+  	_t_part3_pc\
+  	_t_part3_pc_sem\
+  	_t_part3_rw\
+  	_t_part4_safeio\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
