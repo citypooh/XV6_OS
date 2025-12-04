@@ -1,186 +1,143 @@
-# Homework 3
+# xv6 User-Level Threading Library
 
-**NetID of first partner :** sj4771  
-**NetID of second partner :** sh8348  
-**Full Name of first partner :** Seongjae Jung  
-**Full Name of second partner :** David Hong  
-**Github Account Name of first partner :** seongjaeny  
-**Github Account Name of second partner :** citypooh  
-
+**Team Members**
+- Seongjae Jung (sj4771)
+- David Hong (sh8348)
 
 ---
 
 ## Overview
 
-This project extends the xv6 operating system with:
+This is an user-level threading library for xv6.
 
-1. A `nice` system call and user utility.
-2. A 5-level priority-based Round Robin scheduler.
-3. Priority Inheritance to resolve the priority inversion problem through new `lock()` / `release()` system calls.
+For detailed documentation with diagrams and screenshots, see the PDF submitted to Brightspace.
 
 ---
 
-## Implementation Summary
+## Files
 
-### 1. Nice System Call
+**Core Library**
+- `uthreads.h` — Public API (thread, mutex, cond, semaphore, channel)
+- `uthreads_private.h` — Internal structures and constants
+- `uthreads_core.c` — Thread lifecycle and scheduler
+- `uthreads_sync.c` — Mutex, condition variable, semaphore
+- `uthreads_channel.c` — Channel implementation
+- `uthreads_ctx.S` — Context switch (x86 assembly)
 
-- Added a system call to change a process’s nice value.
-- `nice` values range 0–4, where 0 is the highest priority.
-- Default new process `nice = 2`.
-- Returns the old nice value for the given PID.
+**Extra Credit: Thread-Safe I/O**
+- `safeio.h`, `safeio.c`, `safeio_private.h`
 
-**Files Modified**
-- `sysproc.c`: added `sys_nice()`
-- `syscall.c`, `syscall.h`, `user.h`, `usys.S`: registered syscall
-- `proc.c`, `proc.h`: added `nice` and `orig_nice` fields
-
-**Usage**
-```bash
-$ nice <pid> <value>
-$ nice <value>      # applies to current process
-```
-
-**Example**
-```bash
-$ nice 1 4
-1 3    # pid=1, old nice=3
-```
+**Test Programs**
+- `test_final_part1.c` — Basic threading
+- `test_final_part2.c` — Mutex, condition variable, channel
+- `test_final_part3_producer_consumer.c` — Producer-consumer with channels
+- `test_final_part3_producer_consumer_sem.c` — Producer-consumer with semaphores
+- `test_final_part3_reader_writer.c` — Reader-writer lock
+- `test_final_extra.c` — Thread-safe file I/O demo
 
 ---
 
-### 2. Priority-Based Round Robin Scheduler
+## Thread Structure
 
-- Controlled via `param.h`:
-  ```c
-  #define SCHED_PRIORITY 1   // enable priority-based RR
-  ```
-- Scheduler picks lowest nice (highest priority) first.
-- Among equal nice levels → Round Robin.
-- Default policy remains Round Robin if flag = 0.
+Each thread has: saved stack pointer, allocated stack, thread ID, state, start function and argument, return value, a joiner pointer (for join), and a wait queue link.
 
-**Files Modified**
-- `proc.c`: scheduler section under `#if SCHED_PRIORITY`
-- `param.h`: added NICE constants and scheduler flag
+We used 64 max threads and 8KB stack per thread.
 
 ---
 
-### 3. Priority Inheritance (Extra Credit)
+## Thread States
 
-Implements real-time-safe locking to prevent priority inversion.
+Five states: UNUSED (slot available), RUNNABLE (ready to run), RUNNING (currently executing), SLEEPING (blocked on something), ZOMBIE (finished but not joined).
 
-**System Calls**
-```c
-int lock(int id);
-int release(int id);
-```
-
-- Valid lock IDs: 1–7
-- Invalid IDs (0 or >7) return -1
-- Locks are globally shared via `struct lock_t locks[MAX_LOCKS]`
-
-**Mechanism**
-When a high-priority process waits on a lock held by a low-priority process:
-- The owner temporarily inherits the higher priority.
-- Once the lock is released, the owner’s priority is restored (or recomputed if holding multiple locks).
-
-**Core Fixes**
-| Issue | Fix |
-|-------|-----|
-| Deadlock during release | Used `wakeup1()` (since `ptable.lock` already held) |
-| Lock ID ambiguity | Only IDs 1–7 valid, others return -1 |
-| Priority restoration | Scan all locks owned by process and recompute effective nice |
-| Exit safety | Release all held locks and wake up waiters |
-
-**Files Modified**
-- `proc.h`: added `lock_t` struct and prototypes
-- `proc.c`: implemented `k_lock_acquire()`, `k_lock_release()`, `inherit_priority()`, `restore_priority()`
-- `sysproc.c`: added syscall wrappers `sys_lock()` and `sys_release()`
+Transitions: create sets RUNNABLE, scheduler picks one to be RUNNING, yield goes back to RUNNABLE, blocking primitives set SLEEPING, exit sets ZOMBIE, join cleans up to UNUSED.
 
 ---
 
-## Test Programs
+## Context Switch
 
-Each test prints:
-- Start and end markers with ticks (`uptime()`),
-- PASS/FAIL results,
-- Logs showing scheduling and locking behavior.
+Written in x86 assembly. Saves callee-saved registers (ebx, esi, edi, ebp) and the stack pointer to the old thread's structure, loads the new thread's stack pointer, restores its registers, and returns. New threads have their stack set up so the first return jumps to a trampoline that calls the start function.
 
 ---
 
-### Scheduler Tests
+## Scheduler
 
-| File | Purpose | Expected Result |
-|------|----------|-----------------|
-| `test1.c` | Static priorities (nice 0–4) | Lower nice → more primes printed |
-| `test2.c` | Dynamic nice change | Boosted process prints more |
-| `test3.c` | Extreme priorities | High priority dominates CPU time |
+Simple round-robin. Scans from the current thread's position, finds the next RUNNABLE thread, switches to it. If nothing else is runnable, keeps running the current thread. Threads cooperate by calling yield or blocking on synchronization primitives.
 
 ---
 
-### Lock & Priority Inheritance Tests
+## Mutex
 
-| File | Purpose | PASS Condition |
-|------|----------|----------------|
-| `test_lock1.c` | Basic Lock/Unlock + invalid ID | Invalid IDs handled; child acquires after parent release |
-| `test_lock2.c` | Priority Inversion demo | H waits for L; timestamps show inversion |
-| `test_lock3.c` | Priority Inheritance verification | M’s workload decreases when inheritance active |
+Tracks locked state, owner, and a wait queue. Lock checks if free — if so, grab it. If not, add self to wait queue, set state to SLEEPING, and schedule another thread. Unlock passes ownership directly to the next waiter if any, otherwise just releases.
 
 ---
 
-## Sample Output
+## Shared Counter Test
 
-```bash
-$ test_lock1
-[RESULT] LOCK1: PASS
-
-$ test_lock2
-[RESULT] LOCK2: PASS (H waited for L, see timestamps)
-
-$ test_lock3
-[PI] M baseline count=54903, with_inheritance=36385
-[RESULT] LOCK3: PASS
-```
+We test with and without mutex. Four threads each increment a counter 1000 times. Without mutex, the final count is often less than 4000 due to lost updates (read-modify-write race). With mutex, it's always exactly 4000.
 
 ---
 
-## Modified Files
+## Condition Variables
 
-| File | Change | Description |
-|------|---------|-------------|
-| `proc.h` | Added fields & prototypes | Added `nice`, `orig_nice`, `lock_t`, functions |
-| `proc.c` | Scheduler + Locks | Implemented priority RR + priority inheritance |
-| `sysproc.c` | Added syscalls | `sys_nice`, `sys_lock`, `sys_release` |
-| `syscall.c / .h / user.h / usys.S` | Syscall registration | Registered new calls |
-| `param.h` | Config flag | `SCHED_PRIORITY` toggle |
-| `nice.c` | User CLI | For `nice` syscall |
-| `test1.c–test3.c` | Scheduler tests | Priority correctness |
-| `test_lock1.c–test_lock3.c` | Lock tests | Priority inversion & inheritance |
+Just a wait queue. Wait adds the thread to the queue, releases the mutex, sleeps, then re-acquires the mutex when woken. Signal wakes one waiter. Broadcast wakes all.
 
 ---
 
-## How to Build and Run
+## Semaphores
 
-```bash
-$ make clean && make qemu-nox
-# In xv6 shell:
-$ test1
-$ test2
-$ test3
-$ test_lock1
-$ test_lock2
-$ test_lock3
-```
+Tracks a value and a wait queue. Wait decrements value, blocks if negative. Post increments value, wakes one waiter if value was negative.
 
 ---
 
-## Final Results
+## Channels
 
-All tests pass under `SCHED_PRIORITY = 1`:
+Bounded buffer with mutex and two condition variables (not_empty, not_full). Send blocks if full, recv blocks if empty. Close wakes all waiters so they can exit cleanly.
 
-```
-LOCK1: PASS
-LOCK2: PASS
-LOCK3: PASS
-```
+---
+
+## Producer-Consumer (Semaphores)
+
+Three producers, two consumers, buffer size 5. Uses empty_slots and full_slots semaphores plus a buffer mutex. Producers wait on empty_slots, consumers wait on full_slots. Sentinel values signal consumers to exit after all items are done.
+
+---
+
+## Producer-Consumer (Channels)
+
+Same setup but using a channel. Much simpler — the channel handles blocking internally. Close the channel when producers are done, consumers exit when recv returns -1.
+
+---
+
+## Reader-Writer Lock
+
+Uses mutex and two condition variables. Tracks active readers, waiting writers, and whether a writer is active. Writer priority: readers won't start if writers are waiting. This prevents writer starvation.
+
+---
+
+## Thread-Safe File I/O
+
+Problem: xv6 read/write block the whole process. Solution: a dedicated I/O worker thread. User threads send requests through a channel and wait on a condition variable. The worker does the actual syscall and signals completion. This lets other threads run while I/O is pending.
+
+Demo forks two processes — one writes to a file, one reads. Shows interleaved output.
+
+---
+
+## Building and Running
+
+    make clean && make qemu-nox
+
+In xv6 shell:
+
+    t_part1
+    t_part2
+    t_part3_pc
+    t_part3_pc_sem
+    t_part3_rw
+    t_extra
+
+---
+
+## Summary
+
+Implemented: thread states/structure, context switching, round-robin scheduler, mutex, condition variables, semaphores, channels, producer-consumer (both versions), reader-writer lock with writer priority, thread-safe file I/O.
 
 ---
